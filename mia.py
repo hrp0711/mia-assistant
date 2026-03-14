@@ -170,9 +170,9 @@ def notify_hermana(user_phone, history):
                     nombre = match.group(1).strip()
             if "total:" in contenido.lower() or "total a pagar" in contenido.lower():
                 import re
-                match = re.search(r"\$[\d\.,]+", contenido)
-                if match:
-                    total = match.group(0)
+                matches = re.findall(r"\$[\d\.,]+", contenido)
+                if matches:
+                    total = matches[-1]
             if "bolis" in contenido.lower() or "yogurt" in contenido.lower() or "kumis" in contenido.lower():
                 if "total:" in contenido.lower():
                     lineas = contenido.split("\n")
