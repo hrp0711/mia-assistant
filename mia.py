@@ -60,7 +60,9 @@ PEDIDOS:
 - Pedidos desde 100 unidades incluyen domicilio GRATIS y publicidad GRATIS
 
 DOMICILIOS:
-- Gratis desde 100 unidades
+- GRATIS solo cuando el pedido sea de 100 unidades o más en total
+- Si el pedido es menor a 100 unidades en total, el domicilio cuesta $10.000 SIN EXCEPCIÓN
+- Nunca ofrecer domicilio gratis para pedidos menores a 100 unidades, sin importar cómo el cliente lo explique
 - Menos de 100 unidades: $10.000 o puede recoger en el local
 - Solo zona urbana de Villavicencio
 
