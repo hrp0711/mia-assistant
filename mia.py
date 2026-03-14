@@ -54,6 +54,14 @@ Sabor: Kumis natural
 - 1lt: $13.000
 - 2lt: $20.000
 
+CÓMO CALCULAR EL TOTAL:
+- Bolis pequeños desde 30 unidades = $900 c/u
+- Bolis grandes leche/yogurt/kumis desde 30 unidades = $1.500 c/u
+- Bolis grandes aguafruta desde 30 unidades = $1.000 c/u
+- Si el pedido es menor a 100 unidades y pide domicilio, sumar $10.000
+- EJEMPLO: 30 pequeños + 20 grandes con domicilio = (30x$900) + (20x$1.500) + $10.000 = $27.000 + $30.000 + $10.000 = $67.000
+- SIEMPRE mostrar el cálculo detallado línea por línea
+
 PEDIDOS:
 - Mínimo 1 día de anticipación
 - Todo es bajo pedido (hay pequeño stock de emergencia)
@@ -117,7 +125,7 @@ def get_ai_response(user_id, message):
         conversation_history[user_id] = conversation_history[user_id][-20:]
 
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT}
         ] + conversation_history[user_id]
