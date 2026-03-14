@@ -81,6 +81,9 @@ INSTRUCCIONES:
 - Cuando el cliente confirme el pedido, dile SIEMPRE: "Por favor envía tu comprobante de pago al número 320 860 4864 por WhatsApp y en breve te confirmamos 😊"
 - SIEMPRE sumar el costo del domicilio ($10.000) al total cuando el pedido sea menor a 100 unidades y el cliente pida domicilio
 - SIEMPRE pedir la dirección de entrega y número de contacto ANTES de mostrar el total y el mensaje del comprobante
+- SIEMPRE pedir la dirección de entrega ANTES de mostrar el total y el comprobante
+- Cuando el cliente diga "sabores variados" o "surtidos", especifica en el resumen: "surtidos entre todos los sabores disponibles"
+- SOLO enviar la notificación a mi hermana cuando ya tengas: nombre, productos, cantidad, sabores, dirección y total
 """
 
 conversation_history = {}
@@ -137,17 +140,22 @@ def get_ai_response(user_id, message):
 
 
 def notify_hermana(user_phone, history):
-    # Extraer el último mensaje de MIA que tiene el resumen del pedido
-    ultimo_mensaje = ""
-    for msg in reversed(history):
-        if msg["role"] == "assistant":
-            ultimo_mensaje = msg["content"]
-            break
+    # Buscar datos del pedido en la conversación
+    nombre = ""
+    pedido = ""
+    direccion = ""
+    total = ""
 
-    resumen = f"🛍️ *Nuevo pedido*\n"
+    for msg in history:
+        if msg["role"] == "assistant":
+            contenido = msg["content"]
+            if "$" in contenido and "total" in contenido.lower():
+                total = contenido
+
+    resumen = f"🛍️ *NUEVO PEDIDO*\n"
     resumen += f"📱 *Número cliente:* {user_phone}\n"
-    resumen += f"📋 *Resumen:*\n{ultimo_mensaje}\n"
-    resumen += f"⚠️ Pendiente verificar pago en Nequi"
+    resumen += f"📋 *Detalle:*\n{total}\n"
+    resumen += f"⚠️ *Pendiente verificar pago en Nequi*"
 
     send_whatsapp_message(HERMANA_PHONE, resumen)
 
