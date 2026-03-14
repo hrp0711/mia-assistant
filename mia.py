@@ -77,6 +77,8 @@ INSTRUCCIONES:
 - Cuando tengas todos los datos del pedido, confírmalos al cliente
 - Si el cliente pregunta algo que no sabes, dile que se comunique directamente al 3208604864
 - Sé amable, usa emojis con moderación y responde en español
+- Al calcular el total siempre usa los precios mayoristas (desde 30 unidades) para pedidos mayoristas y precios detal para pedidos menores a 30 unidades por producto
+- Cuando el cliente confirme el pedido, dile SIEMPRE: "Por favor envía tu comprobante de pago al número 320 860 4864 por WhatsApp y en breve te confirmamos 😊"
 """
 
 conversation_history = {}
