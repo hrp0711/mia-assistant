@@ -10,6 +10,7 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 META_ACCESS_TOKEN = os.environ.get("META_ACCESS_TOKEN")
 META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID")
 META_VERIFY_TOKEN = os.environ.get("META_VERIFY_TOKEN")
+HERMANA_PHONE = "573208604864"
 
 SYSTEM_PROMPT = """
 Eres MIA, la asistente virtual de Sabores Artesanales, una empresa de productos artesanales en Villavicencio, Colombia.
@@ -120,7 +121,23 @@ def get_ai_response(user_id, message):
         "content": ai_message
     })
 
+    # Detectar si hay un pedido confirmado
+    keywords = ["comprobante", "envía tu comprobante",
+                "pedido está registrado"]
+    if any(k in ai_message.lower() for k in keywords):
+        notify_hermana(user_id, conversation_history[user_id])
+
     return ai_message
+
+
+def notify_hermana(user_phone, history):
+    resumen = f"🛍️ *Nuevo pedido*\n📱 Número cliente: {user_phone}\n\n"
+    resumen += "📋 *Resumen de conversación:*\n"
+    for msg in history[-10:]:
+        rol = "Cliente" if msg["role"] == "user" else "MIA"
+        resumen += f"*{rol}:* {msg['content']}\n"
+    resumen += "\n⚠️ Pendiente verificar pago en Nequi"
+    send_whatsapp_message(HERMANA_PHONE, resumen)
 
 
 @app.route("/webhook", methods=["GET"])
