@@ -148,45 +148,38 @@ def get_ai_response(user_id, message):
 
 
 def notify_hermana(user_phone, history):
-    nombre = "No proporcionado"
-    direccion = "No proporcionada"
-    pedido = "No especificado"
-    total = "No calculado"
-
+    conversacion = ""
     for msg in history:
-        if msg["role"] == "user":
-            contenido = msg["content"].lower()
-            if "carrera" in contenido or "calle" in contenido or "barrio" in contenido or "avenida" in contenido:
-                direccion = msg["content"]
+        rol = "Cliente" if msg["role"] == "user" else "MIA"
+        conversacion += f"{rol}: {msg['content']}\n"
 
-    for msg in history:
-        if msg["role"] == "assistant":
-            contenido = msg["content"]
-            if "gracias," in contenido.lower():
-                import re
-                match = re.search(
-                    r"gracias,\s+([a-záéíóúñ\s]+)[!.]", contenido, re.IGNORECASE)
-                if match:
-                    nombre = match.group(1).strip()
-            if "total:" in contenido.lower() or "total a pagar" in contenido.lower():
-                import re
-                matches = re.findall(r"\$[\d\.,]+", contenido)
-                if matches:
-                    total = matches[-1]
-            if "bolis" in contenido.lower() or "yogurt" in contenido.lower() or "kumis" in contenido.lower():
-                if "total:" in contenido.lower():
-                    lineas = contenido.split("\n")
-                    pedido_lines = [l for l in lineas if "boli" in l.lower(
-                    ) or "yogurt" in l.lower() or "kumis" in l.lower()]
-                    if pedido_lines:
-                        pedido = "\n".join(pedido_lines)
+    try:
+        extraccion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """Extrae los datos del pedido de esta conversación y responde SOLO con este formato exacto:
+👤 *Cliente:* [nombre completo del cliente]
+📦 *Pedido:* [descripción completa con cantidades y sabores]
+💰 *Total:* [total en pesos incluyendo domicilio si aplica]
+📍 *Dirección:* [dirección de entrega o 'Recoge en local']
+
+Si algún dato no está disponible escribe 'No proporcionado'."""
+                },
+                {
+                    "role": "user",
+                    "content": conversacion
+                }
+            ]
+        )
+        datos = extraccion.choices[0].message.content
+    except:
+        datos = "Error al extraer datos"
 
     resumen = f"🛍️ *NUEVO PEDIDO*\n"
-    resumen += f"👤 *Cliente:* {nombre}\n"
     resumen += f"📱 *Número:* {user_phone}\n"
-    resumen += f"📍 *Dirección:* {direccion}\n"
-    resumen += f"📦 *Pedido:*\n{pedido}\n"
-    resumen += f"💰 *Total:* {total}\n"
+    resumen += f"{datos}\n"
     resumen += f"⚠️ *Pendiente verificar pago en Nequi*"
 
     send_whatsapp_message(HERMANA_PHONE, resumen)
