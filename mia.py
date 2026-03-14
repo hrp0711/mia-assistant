@@ -1,30 +1,128 @@
+import os
+import json
+import requests
 from flask import Flask, request, jsonify
 from openai import OpenAI
-import logging
-import os
-from dotenv import load_dotenv
-import requests
-import urllib.parse
-import re
-import json
-
-load_dotenv()
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
-META_PHONE_NUMBER_ID = os.getenv("META_PHONE_NUMBER_ID")
-META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN")
+META_ACCESS_TOKEN = os.environ.get("META_ACCESS_TOKEN")
+META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID")
+META_VERIFY_TOKEN = os.environ.get("META_VERIFY_TOKEN")
 
-user_sessions = {}
+SYSTEM_PROMPT = """
+Eres MIA, la asistente virtual de Sabores Artesanales, una empresa de productos artesanales en Villavicencio, Colombia.
+
+Tu trabajo es atender a los clientes de forma amable, clara y eficiente por WhatsApp.
+
+INFORMACIÓN DEL NEGOCIO:
+📍 Dirección: Carrera 20 #25-17, Barrio Marco Antonio Pinilla, Villavicencio
+🕘 Horario: Lunes a viernes de 9:00am a 6:00pm
+
+PRODUCTOS Y PRECIOS:
+
+🧊 BOLIS PEQUEÑO (75gr)
+- Detal: $1.200 c/u
+- Mayorista (desde 30 unidades): $900 c/u
+Sabores leche: Leche, Milo, Oreo, Arequipe, Fresa, Mora, Curuba
+Sabores yogurt: Fresa, Mora, Maracuyá, Arequipe
+Sabores kumis: Kumis
+
+🧊 BOLIS GRANDE (150gr) — Leche/Yogurt/Kumis
+- Detal: $2.000 c/u
+- Mayorista (desde 30 unidades): $1.500 c/u
+Sabores leche: Leche, Milo, Oreo, Arequipe, Fresa, Mora, Curuba
+Sabores yogurt: Fresa, Mora, Maracuyá, Arequipe
+Sabores kumis: Kumis
+
+🧊 BOLIS GRANDE (150gr) — Aguafruta
+- Detal: $1.500 c/u
+- Mayorista (desde 30 unidades): $1.000 c/u
+Sabores: Maracuyá, Lulo, Mora, Mangobiche
+
+🥛 YOGURT EN TARRO
+Sabores: Fresa, Mora, Maracuyá, Arequipe
+- 250ml: $5.000
+- 1lt: $17.000
+- 2lt: $22.000
+
+🥛 KUMIS EN TARRO
+Sabor: Kumis natural
+- 250ml: $5.000
+- 1lt: $13.000
+- 2lt: $20.000
+
+PEDIDOS:
+- Mínimo 1 día de anticipación
+- Todo es bajo pedido (hay pequeño stock de emergencia)
+- Pedidos desde 100 unidades incluyen domicilio GRATIS y publicidad GRATIS
+
+DOMICILIOS:
+- Gratis desde 100 unidades
+- Menos de 100 unidades: $10.000 o puede recoger en el local
+- Solo zona urbana de Villavicencio
+
+PAGOS:
+- Nequi: 320 860 4864
+- Nequi y Daviplata: 322 759 8513
+
+INSTRUCCIONES:
+- Saluda siempre como: "¡Hola! 👋 Soy MIA, la asistente de Sabores Artesanales 🍧 ¿En qué te puedo ayudar?"
+- Responde solo preguntas relacionadas con el negocio
+- Si el cliente quiere hacer un pedido, solicita: nombre, producto, sabor, cantidad, y si es domicilio o recoge en local
+- Cuando tengas todos los datos del pedido, confírmalos al cliente
+- Si el cliente pregunta algo que no sabes, dile que se comunique directamente al 3208604864
+- Sé amable, usa emojis con moderación y responde en español
+"""
+
+conversation_history = {}
 
 
-# ─────────────────────────────────────────
-# VERIFICACIÓN DEL WEBHOOK (GET)
-# ─────────────────────────────────────────
+def send_whatsapp_message(to, message):
+    url = f"https://graph.facebook.com/v18.0/{META_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {META_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": message}
+    }
+    requests.post(url, headers=headers, json=data)
+
+
+def get_ai_response(user_id, message):
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+
+    conversation_history[user_id].append({
+        "role": "user",
+        "content": message
+    })
+
+    if len(conversation_history[user_id]) > 20:
+        conversation_history[user_id] = conversation_history[user_id][-20:]
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT}
+        ] + conversation_history[user_id]
+    )
+
+    ai_message = response.choices[0].message.content
+
+    conversation_history[user_id].append({
+        "role": "assistant",
+        "content": ai_message
+    })
+
+    return ai_message
+
+
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
     mode = request.args.get("hub.mode")
@@ -32,18 +130,13 @@ def verify_webhook():
     challenge = request.args.get("hub.challenge")
 
     if mode == "subscribe" and token == META_VERIFY_TOKEN:
-        logger.info("✅ Webhook verificado por Meta")
         return challenge, 200
-    return "Token inválido", 403
+    return "Forbidden", 403
 
 
-# ─────────────────────────────────────────
-# RECEPCIÓN DE MENSAJES (POST)
-# ─────────────────────────────────────────
 @app.route("/webhook", methods=["POST"])
-def receive_webhook():
+def webhook():
     data = request.get_json()
-    logger.info("📩 JSON recibido: %s", data)
 
     try:
         entry = data["entry"][0]
@@ -54,232 +147,23 @@ def receive_webhook():
             return jsonify({"status": "ok"}), 200
 
         message = value["messages"][0]
-        from_number = message["from"]
-        msg_type = message.get("type")
+        user_phone = message["from"]
 
-        if msg_type == "text":
-            incoming_msg = message["text"]["body"].strip()
-            logger.info("📨 Mensaje de %s: %s", from_number, incoming_msg)
-            reply = procesar_mensaje(from_number, incoming_msg)
-            send_whatsapp_message(from_number, reply)
-        else:
+        if message["type"] != "text":
             send_whatsapp_message(
-                from_number,
-                "Por ahora solo puedo responder mensajes de texto. 😊 Escríbeme qué producto buscas."
-            )
+                user_phone, "Por ahora solo puedo responder mensajes de texto 😊")
+            return jsonify({"status": "ok"}), 200
+
+        user_message = message["text"]["body"]
+        ai_response = get_ai_response(user_phone, user_message)
+        send_whatsapp_message(user_phone, ai_response)
 
     except Exception as e:
-        logger.error("❌ Error procesando webhook: %s", e)
+        print(f"Error: {e}")
 
     return jsonify({"status": "ok"}), 200
 
 
-# ─────────────────────────────────────────
-# LÓGICA DE CONVERSACIÓN
-# ─────────────────────────────────────────
-def procesar_mensaje(sender, incoming_msg):
-    sesion = user_sessions.get(sender, {})
-    msg_lower = incoming_msg.lower()
-
-    if any(s in msg_lower for s in ["hola", "buenas", "buenos días", "hi", "inicio", "start"]):
-        user_sessions[sender] = {"estado": "esperando_producto"}
-        return "¡Hola! 👋 Soy *MIA*, tu asistente de compras.\n\n¿Qué producto quieres buscar? 🛍️\n\nEscríbeme lo que necesitas, por ejemplo: _licuadora_, _televisor 50 pulgadas_, _zapatos deportivos_."
-
-    elif sesion.get("estado") == "esperando_producto":
-        producto = incoming_msg.strip()
-        opciones = buscar_productos(producto)
-
-        if opciones:
-            user_sessions[sender] = {
-                "estado": "mostrando_resultados",
-                "producto": producto,
-                "opciones": opciones
-            }
-            return crear_mensaje_resultados(producto, opciones)
-        else:
-            user_sessions[sender] = {"estado": "esperando_producto"}
-            return f"😕 Tuve un problema buscando *{producto}*. ¿Puedes intentarlo de nuevo?"
-
-    elif sesion.get("estado") == "mostrando_resultados" and incoming_msg in ["1", "2", "3"]:
-        opciones = sesion.get("opciones", {})
-        opcion_map = {"1": "mas_vendida", "2": "mejor_calificada", "3": "mas_barata"}
-        opcion = opciones.get(opcion_map[incoming_msg], {})
-
-        es_estimado = opciones.get("estimado", False)
-        nombre = opcion.get("nombre", "Producto")
-        precio = opcion.get("precio", "")
-        if es_estimado:
-            precio += " (⚠️ Precio estimado)"
-
-        nombre_url = re.sub(r"[^a-zA-Z0-9]+", "-", nombre.lower()).strip("-")
-        enlace = f"https://listado.mercadolibre.com.co/{nombre_url}"
-
-        user_sessions[sender] = {"estado": "esperando_producto"}
-        return (
-            f"✅ Elegiste:\n\n*{nombre}*\n{opcion.get('descripcion', '')}\n"
-            f"💰 {precio}\n🔗 {enlace}\n\n"
-            f"¿Quieres buscar otro producto? Escribe *hola* para empezar de nuevo 😊"
-        )
-
-    else:
-        user_sessions[sender] = {"estado": "esperando_producto"}
-        return "¡Hola! 👋 Soy *MIA*.\n\n¿Qué producto quieres buscar? 🛍️"
-
-
-# ─────────────────────────────────────────
-# BÚSQUEDA DE PRODUCTOS
-# ─────────────────────────────────────────
-def buscar_productos(producto):
-    es_estimado = False
-    try:
-        ml_url = f"https://api.mercadolibre.com/sites/MCO/search?q={urllib.parse.quote(producto)}&limit=3"
-        response = requests.get(ml_url, timeout=5)
-        if response.status_code == 403:
-            logger.warning("API MercadoLibre retornó 403. Usando GPT (precios estimados).")
-            es_estimado = True
-        elif response.status_code == 200:
-            data = response.json()
-            if "results" in data and len(data["results"]) >= 3:
-                res = data["results"]
-                return {
-                    "estimado": False,
-                    "mas_vendida": {
-                        "nombre": res[0]["title"],
-                        "precio": f"${res[0]['price']:,.0f} COP".replace(",", "."),
-                        "descripcion": "Opción destacada en MercadoLibre",
-                        "razon": "Basado en resultados de búsqueda reales"
-                    },
-                    "mejor_calificada": {
-                        "nombre": res[1]["title"],
-                        "precio": f"${res[1]['price']:,.0f} COP".replace(",", "."),
-                        "descripcion": "Excelente opción en MercadoLibre",
-                        "razon": "Basado en resultados de búsqueda reales"
-                    },
-                    "mas_barata": {
-                        "nombre": res[2]["title"],
-                        "precio": f"${res[2]['price']:,.0f} COP".replace(",", "."),
-                        "descripcion": "Alternativa en MercadoLibre",
-                        "razon": "Basado en resultados de búsqueda reales"
-                    }
-                }
-            else:
-                es_estimado = True
-        else:
-            es_estimado = True
-    except Exception as e:
-        logger.error("Error con MercadoLibre API: %s", e)
-        es_estimado = True
-
-    try:
-        prompt = f"""Eres un asistente de compras experto en Colombia. 
-El usuario quiere comprar: {producto}
-
-Devuelve exactamente 3 opciones de productos reales que se venden en Colombia con este formato JSON:
-{{
-  "mas_vendida": {{
-    "nombre": "nombre del producto",
-    "precio": "precio en pesos colombianos",
-    "descripcion": "descripción breve de 1 línea",
-    "razon": "por qué es la más vendida"
-  }},
-  "mejor_calificada": {{
-    "nombre": "nombre del producto",
-    "precio": "precio en pesos colombianos", 
-    "descripcion": "descripción breve de 1 línea",
-    "razon": "por qué es la mejor calificada"
-  }},
-  "mas_barata": {{
-    "nombre": "nombre del producto",
-    "precio": "precio en pesos colombianos",
-    "descripcion": "descripción breve de 1 línea",
-    "razon": "por qué es la más barata"
-  }}
-}}
-
-Solo responde con el JSON, sin texto adicional."""
-
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
-        )
-
-        content = response.choices[0].message.content.strip()
-        data = json.loads(content)
-        data["estimado"] = es_estimado
-        return data
-
-    except Exception as e:
-        logger.error("Error buscando productos con GPT: %s", e)
-        return None
-
-
-# ─────────────────────────────────────────
-# FORMATO DE RESULTADOS
-# ─────────────────────────────────────────
-def crear_mensaje_resultados(producto, opciones):
-    msg = f"🔍 Encontré estas opciones para *{producto}*:\n\n"
-    es_estimado = opciones.get("estimado", False)
-
-    def format_opcion(op):
-        nombre = op["nombre"]
-        precio = op["precio"]
-        if es_estimado:
-            precio += " (⚠️ Precio estimado)"
-        nombre_url = re.sub(r"[^a-zA-Z0-9]+", "-", nombre.lower()).strip("-")
-        enlace = f"https://listado.mercadolibre.com.co/{nombre_url}"
-        return precio, enlace
-
-    mv = opciones.get("mas_vendida", {})
-    if mv:
-        precio_mv, enlace_mv = format_opcion(mv)
-        msg += f"🏆 *Más vendida*\n{mv['nombre']}\n{mv['descripcion']}\n💰 {precio_mv}\n🔗 {enlace_mv}\n_{mv['razon']}_\n\n"
-
-    mc = opciones.get("mejor_calificada", {})
-    if mc:
-        precio_mc, enlace_mc = format_opcion(mc)
-        msg += f"⭐ *Mejor calificada*\n{mc['nombre']}\n{mc['descripcion']}\n💰 {precio_mc}\n🔗 {enlace_mc}\n_{mc['razon']}_\n\n"
-
-    mb = opciones.get("mas_barata", {})
-    if mb:
-        precio_mb, enlace_mb = format_opcion(mb)
-        msg += f"💰 *Más barata*\n{mb['nombre']}\n{mb['descripcion']}\n💰 {precio_mb}\n🔗 {enlace_mb}\n_{mb['razon']}_\n\n"
-
-    msg += "¿Te interesa alguna opción? Escribe *1*, *2* o *3* 😊"
-    return msg
-
-
-# ─────────────────────────────────────────
-# ENVÍO DE MENSAJES POR META CLOUD API
-# ─────────────────────────────────────────
-def send_whatsapp_message(to_number, message_text):
-    url = f"https://graph.facebook.com/v23.0/{META_PHONE_NUMBER_ID}/messages"
-    headers = {
-        "Authorization": f"Bearer {META_ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_number,
-        "type": "text",
-        "text": {"body": message_text}
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    logger.info("📤 Meta API [%s]: %s", response.status_code, response.text)
-    return response.json()
-
-
-# ─────────────────────────────────────────
-# HEALTH CHECK
-# ─────────────────────────────────────────
-@app.route("/")
-def home():
-    return "MIA está viva 🚀"
-
-
-# ─────────────────────────────────────────
-# ARRANQUE
-# ─────────────────────────────────────────
 if __name__ == "__main__":
-    logger.info("🚀 MIA corriendo en puerto 5001...")
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host="0.0.0.0", port=port, debug=False)
