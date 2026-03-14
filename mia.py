@@ -135,12 +135,18 @@ def get_ai_response(user_id, message):
 
 
 def notify_hermana(user_phone, history):
-    resumen = f"🛍️ *Nuevo pedido*\n📱 Número cliente: {user_phone}\n\n"
-    resumen += "📋 *Resumen de conversación:*\n"
-    for msg in history[-10:]:
-        rol = "Cliente" if msg["role"] == "user" else "MIA"
-        resumen += f"*{rol}:* {msg['content']}\n"
-    resumen += "\n⚠️ Pendiente verificar pago en Nequi"
+    # Extraer el último mensaje de MIA que tiene el resumen del pedido
+    ultimo_mensaje = ""
+    for msg in reversed(history):
+        if msg["role"] == "assistant":
+            ultimo_mensaje = msg["content"]
+            break
+
+    resumen = f"🛍️ *Nuevo pedido*\n"
+    resumen += f"📱 *Número cliente:* {user_phone}\n"
+    resumen += f"📋 *Resumen:*\n{ultimo_mensaje}\n"
+    resumen += f"⚠️ Pendiente verificar pago en Nequi"
+
     send_whatsapp_message(HERMANA_PHONE, resumen)
 
 
