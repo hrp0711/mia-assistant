@@ -148,21 +148,45 @@ def get_ai_response(user_id, message):
 
 
 def notify_hermana(user_phone, history):
-    # Buscar datos del pedido en la conversación
-    nombre = ""
-    pedido = ""
-    direccion = ""
-    total = ""
+    nombre = "No proporcionado"
+    direccion = "No proporcionada"
+    pedido = "No especificado"
+    total = "No calculado"
+
+    for msg in history:
+        if msg["role"] == "user":
+            contenido = msg["content"].lower()
+            if "carrera" in contenido or "calle" in contenido or "barrio" in contenido or "avenida" in contenido:
+                direccion = msg["content"]
 
     for msg in history:
         if msg["role"] == "assistant":
             contenido = msg["content"]
-            if "$" in contenido and "total" in contenido.lower():
-                total = contenido
+            if "gracias," in contenido.lower():
+                import re
+                match = re.search(
+                    r"gracias,\s+([a-záéíóúñ\s]+)[!.]", contenido, re.IGNORECASE)
+                if match:
+                    nombre = match.group(1).strip()
+            if "total:" in contenido.lower() or "total a pagar" in contenido.lower():
+                import re
+                match = re.search(r"\$[\d\.,]+", contenido)
+                if match:
+                    total = match.group(0)
+            if "bolis" in contenido.lower() or "yogurt" in contenido.lower() or "kumis" in contenido.lower():
+                if "total:" in contenido.lower():
+                    lineas = contenido.split("\n")
+                    pedido_lines = [l for l in lineas if "boli" in l.lower(
+                    ) or "yogurt" in l.lower() or "kumis" in l.lower()]
+                    if pedido_lines:
+                        pedido = "\n".join(pedido_lines)
 
     resumen = f"🛍️ *NUEVO PEDIDO*\n"
-    resumen += f"📱 *Número cliente:* {user_phone}\n"
-    resumen += f"📋 *Detalle:*\n{total}\n"
+    resumen += f"👤 *Cliente:* {nombre}\n"
+    resumen += f"📱 *Número:* {user_phone}\n"
+    resumen += f"📍 *Dirección:* {direccion}\n"
+    resumen += f"📦 *Pedido:*\n{pedido}\n"
+    resumen += f"💰 *Total:* {total}\n"
     resumen += f"⚠️ *Pendiente verificar pago en Nequi*"
 
     send_whatsapp_message(HERMANA_PHONE, resumen)
