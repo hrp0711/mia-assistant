@@ -99,6 +99,7 @@ Luego envíanos el comprobante por WhatsApp al 320 860 4864 y en breve te confir
 - SIEMPRE pedir la dirección de entrega ANTES de mostrar el total y el comprobante
 - Cuando el cliente diga "sabores variados" o "surtidos", especifica en el resumen: "surtidos entre todos los sabores disponibles"
 - SOLO enviar la notificación a mi hermana cuando ya tengas: nombre, productos, cantidad, sabores, dirección y total
+- Si el cliente pregunta sobre la publicidad gratuita, dile: "Para más información sobre la publicidad gratuita comunícate directamente al 320 860 4864 😊"
 """
 
 conversation_history = {}
