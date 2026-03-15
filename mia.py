@@ -29,21 +29,21 @@ INFORMACIÓN DEL NEGOCIO:
 
 PRODUCTOS Y PRECIOS:
 
-🧊 BOLIS PEQUEÑO (75gr)
+🧊 BOLIS PEQUEÑOS (75gr)
 - Detal: $1.200 c/u
 - Mayorista (desde 30 unidades): $900 c/u
 Sabores leche: Leche, Milo, Oreo, Arequipe, Fresa, Mora, Curuba
 Sabores yogurt: Fresa, Mora, Maracuyá, Arequipe
 Sabores kumis: Kumis
 
-🧊 BOLIS GRANDE (150gr) — Leche/Yogurt/Kumis
+🧊 BOLIS GRANDES (150gr) — Leche/Yogurt/Kumis
 - Detal: $2.000 c/u
 - Mayorista (desde 30 unidades): $1.500 c/u
 Sabores leche: Leche, Milo, Oreo, Arequipe, Fresa, Mora, Curuba
 Sabores yogurt: Fresa, Mora, Maracuyá, Arequipe
 Sabores kumis: Kumis
 
-🧊 BOLIS GRANDE (150gr) — Aguafruta
+🧊 BOLIS GRANDES (150gr) — Aguafruta
 - Detal: $1.500 c/u
 - Mayorista (desde 30 unidades): $1.000 c/u
 Sabores: Maracuyá, Lulo, Mora, Mangobiche
