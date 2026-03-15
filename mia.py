@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import holidays
 import pytz
 import json
 import requests
@@ -147,12 +148,25 @@ def get_ai_response(user_id, message):
     if len(conversation_history[user_id]) > 20:
         conversation_history[user_id] = conversation_history[user_id][-20:]
 
-        # Obtener hora actual Colombia
+# Obtener hora actual Colombia
     colombia_tz = pytz.timezone("America/Bogota")
-    hora_actual = datetime.now(colombia_tz).strftime("%H:%M %A")
+    ahora = datetime.now(colombia_tz)
+    hora_actual = ahora.strftime("%H:%M %A")
+
+    # Verificar si es festivo colombiano
+    festivos_colombia = holidays.Colombia()
+    es_festivo = ahora.date() in festivos_colombia
+    es_fin_de_semana = ahora.weekday() >= 5  # 5=sabado, 6=domingo
+
+    if es_festivo:
+        dia_info = f"{hora_actual} (HOY ES FESTIVO EN COLOMBIA, no hay atención)"
+    elif es_fin_de_semana:
+        dia_info = f"{hora_actual} (HOY ES FIN DE SEMANA, no hay atención)"
+    else:
+        dia_info = hora_actual
 
     system_with_time = SYSTEM_PROMPT + \
-        f"\n\nHora actual en Colombia: {hora_actual}"
+        f"\n\nHora actual en Colombia: {dia_info}"
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
