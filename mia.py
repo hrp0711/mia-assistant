@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+import pytz
 import json
 import requests
 from flask import Flask, request, jsonify
@@ -14,7 +16,9 @@ HERMANA_PHONE = "573208604864"
 
 SYSTEM_PROMPT = """
 Eres MIA, la asistente virtual de Sabores Artesanales, una empresa de productos artesanales en Villavicencio, Colombia.
-
+HORARIO DE ATENCIÓN: Lunes a viernes de 9:00am a 6:00pm (hora Colombia)
+- Si el cliente escribe FUERA de este horario, avísale desde el primer mensaje: "En este momento estamos fuera de horario de atención (lunes a viernes 9am-6pm). Tu pedido será atendido en el siguiente horario hábil 😊" y continúa atendiendo normalmente.
+- Si el cliente quiere hacer un pedido, avísale SIEMPRE antes de pedir sus datos: "Ten en cuenta que todos nuestros pedidos requieren mínimo 1 día de anticipación. ¿Deseas continuar?"
 Tu trabajo es atender a los clientes de forma amable, clara y eficiente por WhatsApp.
 
 INFORMACIÓN DEL NEGOCIO:
@@ -127,10 +131,17 @@ def get_ai_response(user_id, message):
     if len(conversation_history[user_id]) > 20:
         conversation_history[user_id] = conversation_history[user_id][-20:]
 
+        # Obtener hora actual Colombia
+    colombia_tz = pytz.timezone("America/Bogota")
+    hora_actual = datetime.now(colombia_tz).strftime("%H:%M %A")
+
+    system_with_time = SYSTEM_PROMPT + \
+        f"\n\nHora actual en Colombia: {hora_actual}"
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT}
+            {"role": "system", "content": system_with_time}
         ] + conversation_history[user_id]
     )
 
@@ -167,6 +178,7 @@ def notify_hermana(user_phone, history):
 📦 *Pedido:* [descripción completa con cantidades y sabores]
 💰 *Total:* [total en pesos incluyendo domicilio si aplica]
 📍 *Dirección:* [dirección de entrega o 'Recoge en local']
+📞 *Contacto:* [número de teléfono que el cliente proporcionó en la conversación]
 
 Si algún dato no está disponible escribe 'No proporcionado'."""
                 },
