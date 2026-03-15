@@ -71,12 +71,27 @@ PEDIDOS:
 - Todo es bajo pedido (hay pequeño stock de emergencia)
 - Pedidos desde 100 unidades incluyen domicilio GRATIS y publicidad GRATIS
 
-DOMICILIOS:
-- GRATIS solo cuando el pedido sea de 100 unidades o más en total
-- Si el pedido es menor a 100 unidades en total, el domicilio cuesta $10.000 SIN EXCEPCIÓN
-- Nunca ofrecer domicilio gratis para pedidos menores a 100 unidades, sin importar cómo el cliente lo explique
-- Menos de 100 unidades: $10.000 o puede recoger en el local
-- Solo zona urbana de Villavicencio
+DOMICILIOS Y ENVÍOS:
+
+DOMICILIOS ZONA URBANA VILLAVICENCIO:
+- Menos de 100 unidades: $10.000
+- 100 unidades o más: GRATIS + publicidad GRATIS
+- Aplica para todos los productos (bolis, yogurt y kumis)
+- NUNCA ofrecer domicilio gratis para pedidos menores a 100 unidades
+
+DOMICILIOS ZONA RURAL:
+- El precio varía según la zona
+- Indicarle al cliente que se comunique directamente al 320 860 4864 para coordinar el domicilio y el precio
+
+ENVÍOS A OTROS MUNICIPIOS O CIUDADES (no se hace domicilio, el cliente recoge en la flota):
+- El cliente debe pagar la cava + el costo del envío por flota
+- Cava nueva: $23.500
+- Cava usada: $15.000
+- Las cavas aplican para pedidos de bolis hasta 100 unidades
+- Para pedidos mayores a 100 unidades, indicarle al cliente que se comunique directamente al 320 860 4864
+
+IMPORTANTE: SIEMPRE preguntar al cliente si es zona urbana Villavicencio, zona rural o fuera de Villavicencio antes de calcular el costo de envío.
+IMPORTANTE: No se aceptan pagos contra entrega. El pago debe realizarse antes de la entrega o envío.
 
 PAGOS:
 - Nequi: 320 860 4864
