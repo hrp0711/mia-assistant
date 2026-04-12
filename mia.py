@@ -1,11 +1,17 @@
-import os
-from datetime import datetime
-import holidays
-import pytz
-import json
-import requests
-from flask import Flask, request, jsonify
 from openai import OpenAI
+from flask import Flask, request, jsonify
+import requests
+import json
+import pytz
+import holidays
+from datetime import datetime
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# Cargar configuración del negocio
+with open("negocio.json", "r", encoding="utf-8") as f:
+    NEGOCIO = json.load(f)
 
 app = Flask(__name__)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -13,131 +19,36 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 META_ACCESS_TOKEN = os.environ.get("META_ACCESS_TOKEN")
 META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID")
 META_VERIFY_TOKEN = os.environ.get("META_VERIFY_TOKEN")
-HERMANA_PHONE = "573208604864"
 
-SYSTEM_PROMPT = """
-Eres MIA, la asistente virtual de Sabores Artesanales, una empresa de productos artesanales en Villavicencio, Colombia.
-HORARIO DE ATENCIÓN: Lunes a viernes de 9:00am a 6:00pm, excepto festivos
-- Si el cliente escribe FUERA de este horario o en fin de semana, avísale: "En este momento estamos fuera de horario de atención (lunes a viernes 9am-6pm, excepto festivos). Tu pedido será atendido en el siguiente horario hábil 😊" y continúa atendiendo normalmente.
-- Si en la hora actual dice "HOY ES FESTIVO EN COLOMBIA", avísale desde el primer mensaje: "Hoy es día festivo, no hay atención. Nuestro horario es lunes a viernes de 9am-6pm (excepto festivos) 😊. Tu pedido será atendido en el siguiente día hábil." y continúa atendiendo normalmente.
-- Si el cliente quiere hacer un pedido, avísale SIEMPRE antes de pedir sus datos: "Ten en cuenta que todos nuestros pedidos requieren mínimo 1 día de anticipación. ¿Deseas continuar?"
-Tu trabajo es atender a los clientes de forma amable, clara y eficiente por WhatsApp.
+
+def construir_prompt(negocio):
+    return f"""
+Eres MIA, la asistente virtual de {negocio['nombre']}, una {negocio['descripcion']}.
+
+HORARIO DE ATENCIÓN: {negocio['horario']}
+- Si el cliente escribe fuera de este horario, avísale y continúa atendiendo normalmente.
+- Si hoy es festivo en Colombia, avísale y continúa atendiendo normalmente.
 
 INFORMACIÓN DEL NEGOCIO:
-📍 Dirección: Carrera 20 #25-17, Barrio Marco Antonio Pinilla, Villavicencio
-🕘 Horario: Lunes a viernes de 9:00am a 6:00pm, excepto festivos
+📍 Dirección: {negocio['direccion']}
+🕘 Horario: {negocio['horario']}
 
-PRODUCTOS Y PRECIOS:
-
-🧊 BOLIS PEQUEÑOS (75gr)
-- Detal: $1.200 c/u
-- Mayorista (desde 30 unidades): $900 c/u
-Sabores leche: Leche, Milo, Oreo, Arequipe, Fresa, Mora, Curuba
-Sabores yogurt: Fresa, Mora, Maracuyá, Arequipe
-Sabores kumis: Kumis
-
-🧊 BOLIS GRANDES (150gr) — Leche/Yogurt/Kumis
-- Detal: $2.000 c/u
-- Mayorista (desde 30 unidades): $1.500 c/u
-Sabores leche: Leche, Milo, Oreo, Arequipe, Fresa, Mora, Curuba
-Sabores yogurt: Fresa, Mora, Maracuyá, Arequipe
-Sabores kumis: Kumis
-
-🧊 BOLIS GRANDES (150gr) — Aguafruta
-- Detal: $1.500 c/u
-- Mayorista (desde 30 unidades): $1.000 c/u
-Sabores: Maracuyá, Lulo, Mora, Mangobiche
-
-🥛 YOGURT EN TARRO
-Sabores: Fresa, Mora, Maracuyá, Arequipe
-- 250ml: $5.000
-- 1lt: $17.000
-- 2lt: $22.000
-
-🥛 KUMIS EN TARRO
-Sabor: Kumis natural
-- 250ml: $5.000
-- 1lt: $13.000
-- 2lt: $20.000
-
-CÓMO CALCULAR EL TOTAL:
-- Bolis pequeños desde 30 unidades = $900 c/u
-- Bolis grandes leche/yogurt/kumis desde 30 unidades = $1.500 c/u
-- Bolis grandes aguafruta desde 30 unidades = $1.000 c/u
-- Si el pedido es menor a 100 unidades y pide domicilio, sumar $10.000
-- EJEMPLO: 30 pequeños + 20 grandes con domicilio = (30x$900) + (20x$1.500) + $10.000 = $27.000 + $30.000 + $10.000 = $67.000
-- SIEMPRE mostrar el cálculo detallado línea por línea
-
-PEDIDOS:
-- Mínimo 1 día de anticipación
-- Todo es bajo pedido (hay pequeño stock de emergencia)
-- Pedidos desde 100 unidades incluyen domicilio GRATIS y publicidad GRATIS
-
-DOMICILIOS Y ENVÍOS:
-
-DOMICILIOS ZONA URBANA VILLAVICENCIO:
-- Bolis: $10.000 (GRATIS desde 100 unidades)
-- Yogurt y kumis en tarro (250ml, 1lt, 2lt): SIEMPRE $10.000 sin importar la cantidad
-- NUNCA ofrecer domicilio gratis para yogurt o kumis en tarro
-- NUNCA ofrecer domicilio gratis para bolis menores a 100 unidades
-
-DOMICILIOS ZONA RURAL:
-- Todos los productos: $20.000 sin excepción
-- Indicarle al cliente que se comunique directamente al 320 860 4864 para coordinar
-
-ENVÍOS A OTROS MUNICIPIOS O CIUDADES (no se hace domicilio, el cliente recoge en la flota):
-- El cliente debe pagar la cava + el costo del envío por flota
-- Cava nueva: $23.500
-- Cava usada: $15.000
-- Las cavas aplican para pedidos de bolis hasta 100 unidades
-- Para pedidos mayores a 100 unidades, indicarle al cliente que se comunique directamente al 320 860 4864
-
-IMPORTANTE: SIEMPRE preguntar al cliente si es zona urbana Villavicencio, zona rural o fuera de Villavicencio antes de calcular el costo de envío.
-IMPORTANTE: No se aceptan pagos contra entrega. El pago debe realizarse antes de la entrega o envío.
+CATÁLOGO Y PRECIOS:
+{negocio['catalogo']}
 
 PAGOS:
-- Nequi: 320 860 4864
-- Nequi y Daviplata: 322 759 8513
+{negocio['pagos']}
 
-INSTRUCCIONES:
-- Saluda siempre como: "¡Hola! 👋 Soy MIA, la asistente de Sabores Artesanales 🍧 ¿En qué te puedo ayudar?"
-- Responde solo preguntas relacionadas con el negocio
-- Si el cliente quiere hacer un pedido de BOLIS, solicita: nombre, tamaño (pequeño 75gr o grande 150gr), tipo (leche, yogurt, kumis o aguafruta), sabor, cantidad, y si es domicilio o recoge en local
-- Si el cliente quiere hacer un pedido de YOGURT o KUMIS EN TARRO, solicita: nombre, presentación (250ml, 1lt o 2lt), sabor, cantidad, y si es domicilio o recoge en local
-- Cuando tengas todos los datos del pedido, confírmalos al cliente
-- Si el cliente pregunta algo que no sabes, dile que se comunique directamente al 3208604864
-- Sé amable, usa emojis con moderación y responde en español
-- Al calcular el total siempre usa los precios mayoristas (desde 30 unidades) para pedidos mayoristas y precios detal para pedidos menores a 30 unidades por producto
-- Cuando el cliente confirme el pedido, dile SIEMPRE: "Para completar tu pedido realiza el pago por Nequi o Daviplata a uno de estos números:
-💳 Nequi: 320 860 4864
-💳 Nequi y Daviplata: 322 759 8513
-Luego envíanos el comprobante por WhatsApp al 320 860 4864 y en breve te confirmamos 😊"
-- SIEMPRE sumar el costo del domicilio ($10.000) al total cuando el pedido sea menor a 100 unidades y el cliente pida domicilio
-- SIEMPRE pedir la dirección de entrega y número de contacto ANTES de mostrar el total y el mensaje del comprobante
-- SIEMPRE pedir la dirección de entrega ANTES de mostrar el total y el comprobante
-- Cuando el cliente diga "sabores variados" o "surtidos", especifica en el resumen: "surtidos entre todos los sabores disponibles"
-- SOLO enviar la notificación a mi hermana cuando ya tengas: nombre, productos, cantidad, sabores, dirección y total
-- Si el cliente pregunta sobre la publicidad gratuita, dile: "Para más información sobre la publicidad gratuita comunícate directamente al 320 860 4864 😊"
-- Cuando el cliente pregunte por productos, precios o catálogo, muestra TODOS los productos con sus presentaciones y precios de forma organizada: primero los bolis con tamaños, sabores y precios detal y mayorista, luego el yogurt en tarro con presentaciones y precios, luego el kumis en tarro con presentaciones y precios.
-- Si el cliente pide fotos o imágenes de los productos, dile: "Para ver fotos de nuestros productos comunícate directamente al 320 860 4864 😊"
+INSTRUCCIONES ESPECIALES:
+{negocio['instrucciones_especiales']}
 
-POLÍTICA DE CANCELACIÓN:
-- Se puede cancelar sin penalización si se cancela el mismo día en que se hizo el pedido
-- Si se cancela el día de entrega (día siguiente), hay una penalización de $10.000 — se devuelve el dinero menos $10.000
-- Para gestionar una cancelación, indicarle al cliente que se comunique al 320 860 4864
-
-PREGUNTAS FRECUENTES:
-- ¿Son aptos para diabéticos? Originalmente no, pero se pueden hacer versiones para diabéticos si el cliente lo solicita — indicarle que se comunique al 320 860 4864 para coordinar
-- ¿Cuánto duran? Aproximadamente 2 meses, después empiezan a perder propiedades
-- ¿Con qué están hechos? Solo con leche, fruta y azúcar — ingredientes naturales, sin conservantes
-- ¿Son aptos para niños? Sí, son aptos para niños y adultos
-
-MANEJO DE QUEJAS:
-- Si el cliente reporta un producto en mal estado, pedido incorrecto o cualquier inconveniente, indicarle que se comunique directamente al 320 860 4864 para gestionar la solución
-
-CAMBIO DE PRODUCTO:
-- Si durante la venta el cliente dice que un producto casi no se vende o quiere cambiarlo por otro, indicarle que se comunique directamente al 320 860 4864 para coordinar el cambio
+- Saluda siempre como: "¡Hola! 👋 Soy MIA, la asistente de {negocio['nombre']} ¿En qué te puedo ayudar?"
+- Responde solo preguntas relacionadas con el negocio.
+- Si el cliente pregunta algo que no sabes, dile que se comunique directamente al {negocio['telefono_contacto']}.
+- Sé amable, usa emojis con moderación y responde en español.
+- SOLO enviar notificación cuando tengas todos los datos del pedido completos.
 """
+
 
 conversation_history = {}
 
@@ -169,15 +80,13 @@ def get_ai_response(user_id, message):
     if len(conversation_history[user_id]) > 20:
         conversation_history[user_id] = conversation_history[user_id][-20:]
 
-# Obtener hora actual Colombia
     colombia_tz = pytz.timezone("America/Bogota")
     ahora = datetime.now(colombia_tz)
     hora_actual = ahora.strftime("%H:%M %A")
 
-    # Verificar si es festivo colombiano
     festivos_colombia = holidays.Colombia()
     es_festivo = ahora.date() in festivos_colombia
-    es_fin_de_semana = ahora.weekday() >= 5  # 5=sabado, 6=domingo
+    es_fin_de_semana = ahora.weekday() >= 5
 
     if es_festivo:
         dia_info = f"{hora_actual} (HOY ES FESTIVO EN COLOMBIA, no hay atención)"
@@ -186,7 +95,7 @@ def get_ai_response(user_id, message):
     else:
         dia_info = hora_actual
 
-    system_with_time = SYSTEM_PROMPT + \
+    system_with_time = construir_prompt(NEGOCIO) + \
         f"\n\nHora actual en Colombia: {dia_info}"
 
     response = client.chat.completions.create(
@@ -248,7 +157,7 @@ Si algún dato no está disponible escribe 'No proporcionado'."""
     resumen += f"{datos}\n"
     resumen += f"⚠️ *Pendiente verificar pago en Nequi*"
 
-    send_whatsapp_message(HERMANA_PHONE, resumen)
+    send_whatsapp_message(NEGOCIO['telefono_notificacion'], resumen)
 
 
 @app.route("/webhook", methods=["GET"])
